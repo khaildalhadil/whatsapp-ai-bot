@@ -14,9 +14,6 @@ from flask import Flask, request
 # On Azure there is no .env file: the same variables are set in the portal instead.
 load_dotenv()
 
-# The secret word we also type in Meta's webhook settings.
-VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
-
 # Azure (gunicorn) looks for a variable named "app" inside app.py to start the server.
 app = Flask(__name__)
 
@@ -30,14 +27,12 @@ def health():
 @app.get("/webhook")
 def verify_webhook():
     # Meta calls this once, when you click "Verify and save" in the dashboard.
-    # It sends 3 values in the URL. If the token matches ours, we send back the challenge
-    # and Meta knows this server is really ours.
+    # It sends a "challenge" number; we send it back and Meta saves the webhook.
+    # We don't check the "Verify token" field, so you can type anything there.
     mode = request.args.get("hub.mode")
-    token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
 
-    # "VERIFY_TOKEN and" stops an empty token from matching an empty .env value.
-    if mode == "subscribe" and VERIFY_TOKEN and token == VERIFY_TOKEN:
+    if mode == "subscribe":
         return challenge, 200
     return "Verification failed", 403
 
@@ -46,7 +41,6 @@ def verify_webhook():
 def receive_message():
     # Meta calls this every time something happens on our number:
     # a new message, or a status update (sent / delivered / read).
-    # TODO before deploying: check the X-Hub-Signature-256 header so only Meta can call this.
     data = request.get_json(silent=True) or {}
 
     # The JSON is nested: entry -> changes -> value -> messages.

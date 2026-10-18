@@ -40,7 +40,7 @@ Meta needs a public HTTPS URL, so we expose `localhost:8000` with a tunnel.
    It prints a URL like `https://something.trycloudflare.com`.
 3. Meta dashboard > WhatsApp > Configuration > Webhook > Edit:
    - Callback URL: `https://something.trycloudflare.com/webhook`
-   - Verify token: the same `VERIFY_TOKEN` you put in `.env`
+   - Verify token: type anything (Meta requires the field, our server doesn't check it)
    - Click **Verify and save**
 4. Same page > Webhook fields > subscribe to **messages**.
 5. Send a WhatsApp message to the test number. It shows up in the `python app.py` terminal.
@@ -53,4 +53,4 @@ The tunnel URL changes every time you restart cloudflared, so update it in Meta 
 2. **Webhook** (done): Meta verifies our server and sends us incoming messages
 3. Reply: send a message back through the WhatsApp API
 4. AI: generate smart replies
-5. Deploy to Azure (+ check Meta's signature on incoming requests)
+5. Deploy to Azure
