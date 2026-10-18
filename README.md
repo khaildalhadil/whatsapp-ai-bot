@@ -33,6 +33,8 @@ python test_webhook.py
 Meta needs a public HTTPS URL, so we expose `localhost:8000` with a tunnel.
 
 1. Install cloudflared once: `winget install --id Cloudflare.cloudflared`
+   (no winget? download `cloudflared-windows-amd64.exe` from
+   https://github.com/cloudflare/cloudflared/releases/latest and rename it to `cloudflared.exe`)
 2. Keep `python app.py` running, then in a second terminal:
    `cloudflared tunnel --url http://localhost:8000`
    It prints a URL like `https://something.trycloudflare.com`.
