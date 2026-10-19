@@ -22,7 +22,7 @@ PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 
 # Our OpenAI key (from platform.openai.com > API keys) and the model that answers.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 
 # The bot's personality. The AI reads these instructions before every answer.
 SYSTEM_PROMPT = (
