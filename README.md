@@ -1,7 +1,19 @@
 # WhatsApp AI Bot
 
-A WhatsApp bot built with Python + Flask, using the WhatsApp Cloud API (Meta).
-Replies are written by OpenAI. It will be deployed to Azure App Service.
+A WhatsApp booking bot for a tartan football pitch, built with Python + Flask and the
+WhatsApp Cloud API (Meta). OpenAI writes the replies, and reads/writes the bookings table
+in `bookings.xlsx`. It will be deployed to Azure App Service.
+
+## The bookings table
+
+`bookings.xlsx` has one row per booked hour: `Date | Day | Time | Name | Phone`.
+It is created with sample data the first time the bot runs. To reset it to sample data:
+
+```powershell
+python bookings.py
+```
+
+Close the file in Excel before people book: Excel locks it while it's open.
 
 ## Run locally (Windows PowerShell)
 
@@ -22,10 +34,11 @@ python app.py
 
 Then open http://localhost:8000. You should see `WhatsApp bot is running`.
 
-Run the webhook check (no internet needed):
+Run the checks (no internet needed):
 
 ```powershell
 python test_webhook.py
+python test_bookings.py
 ```
 
 ## Connect the webhook to Meta (local testing)
@@ -54,4 +67,5 @@ The tunnel URL changes every time you restart cloudflared, so update it in Meta 
 3. **Reply** (done): send a message back through the WhatsApp API
 4. **AI** (done): OpenAI writes the replies and remembers each person's last 10 messages
    (needs `OPENAI_API_KEY` in `.env`)
-5. Deploy to Azure
+5. **Bookings** (done): the AI checks free hours and books them in `bookings.xlsx`
+6. Deploy to Azure
