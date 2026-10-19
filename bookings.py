@@ -45,9 +45,19 @@ def local_number(phone):
     return digits
 
 
+def time_label(hour):
+    """Turn a 24h hour into the 12h Arabic way people say it: 23 -> "11 مساءً", 9 -> "9 صباحًا"."""
+    suffix = "صباحًا" if hour < 12 else "مساءً"
+    return f"{hour % 12 or 12} {suffix}"
+
+
 def hour_of(cell):
-    """Read the hour from a Time cell: works for "20:00" text and for real Excel times."""
-    return int(str(cell).split(":")[0])
+    """Read the 24h hour from a Time cell: "11 مساءً", "11 PM", "23:00" or a real Excel time -> 23."""
+    text = str(cell)
+    hour = int(text.split(":")[0].split()[0])
+    if ("مساء" in text or "PM" in text.upper()) and hour < 12:
+        hour += 12
+    return hour
 
 
 def read_bookings():
@@ -64,19 +74,24 @@ def read_bookings():
     ]
 
 
+def booked_hours(day):
+    """The booked hours (24h numbers, e.g. [17, 20]) of one date."""
+    return sorted(b["hour"] for b in read_bookings() if b["date"] == day.isoformat())
+
+
 def check_day(date):
-    """Return the booked and free hours of one date ("YYYY-MM-DD").
+    """Return the booked and free hours of one date ("YYYY-MM-DD"), written like "8 مساءً".
 
     Other customers' names and phone numbers are NOT returned, only the hours.
     """
     day = datetime.strptime(date, "%Y-%m-%d").date()
-    booked = sorted(b["hour"] for b in read_bookings() if b["date"] == day.isoformat())
+    booked = booked_hours(day)
     free = [h for h in range(OPEN_HOUR, CLOSE_HOUR) if h not in booked]
     return {
         "date": day.isoformat(),
         "day": day.strftime("%A"),
-        "booked_hours": [f"{h:02d}:00" for h in booked],
-        "free_hours": [f"{h:02d}:00" for h in free],
+        "booked_hours": [time_label(h) for h in booked],
+        "free_hours": [time_label(h) for h in free],
     }
 
 
@@ -85,17 +100,17 @@ def book_slot(date, hour, name, phone):
     day = datetime.strptime(date, "%Y-%m-%d").date()
 
     if not OPEN_HOUR <= hour < CLOSE_HOUR:
-        return {"ok": False, "reason": f"The pitch is open from {OPEN_HOUR}:00 to midnight."}
+        return {"ok": False, "reason": f"The pitch is open from {time_label(OPEN_HOUR)} to midnight."}
     if datetime(day.year, day.month, day.day, hour) < now():
         return {"ok": False, "reason": "This time is already in the past."}
 
     with lock:
         # Check again inside the lock: someone may have booked it a second ago.
-        if f"{hour:02d}:00" in check_day(date)["booked_hours"]:
+        if hour in booked_hours(day):
             return {"ok": False, "reason": "This hour is already booked."}
 
         workbook = load_workbook(FILE)
-        row = [day.isoformat(), ARABIC_DAYS[day.weekday()], f"{hour:02d}:00", name, local_number(phone)]
+        row = [day.isoformat(), ARABIC_DAYS[day.weekday()], time_label(hour), name, local_number(phone)]
         workbook.active.append(row)
         try:
             workbook.save(FILE)
@@ -103,7 +118,7 @@ def book_slot(date, hour, name, phone):
             # On Windows, Excel locks the file while you have it open.
             return {"ok": False, "reason": "The bookings file is open in Excel. Close it and try again."}
 
-    return {"ok": True, "date": day.isoformat(), "day": day.strftime("%A"), "time": f"{hour:02d}:00", "name": name}
+    return {"ok": True, "date": day.isoformat(), "day": day.strftime("%A"), "time": time_label(hour), "name": name}
 
 
 def create_sample_file():
@@ -121,7 +136,7 @@ def create_sample_file():
         day = now().date() + timedelta(days=d)
         for i, hour in enumerate([17, 20, 22][: d % 3 + 1]):
             fake_phone = f"9{d}{i}12345"  # made-up 8-digit Omani number
-            sheet.append([day.isoformat(), ARABIC_DAYS[day.weekday()], f"{hour:02d}:00", names[(d + i) % 7], fake_phone])
+            sheet.append([day.isoformat(), ARABIC_DAYS[day.weekday()], time_label(hour), names[(d + i) % 7], fake_phone])
 
     workbook.save(FILE)
 

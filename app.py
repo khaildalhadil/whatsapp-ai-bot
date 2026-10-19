@@ -41,6 +41,8 @@ def system_prompt():
         f"Today is {today.strftime('%A %Y-%m-%d')}. The next 7 days are: {next_days}. "
         "When the customer asks about a day or time, call check_day to read the bookings table. Never guess. "
         "An hour without AM/PM, like 8, means 8 PM (20:00), because the pitch opens in the evening. "
+        "Always write times the 12-hour way people say them, like 8 مساءً or 11 مساءً (8 PM, 11 PM in English), "
+        "never the 24-hour way like 20:00 or 23:00. "
         "To book: ask for the customer's name and phone number, then call book_slot. "
         "Only say the booking is done if book_slot returns ok; otherwise explain the reason. "
         "Never share other customers' names or phone numbers. "

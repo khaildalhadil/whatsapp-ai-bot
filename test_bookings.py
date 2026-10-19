@@ -14,14 +14,20 @@ bookings.create_sample_file()
 tomorrow = (bookings.now().date() + timedelta(days=1)).isoformat()
 yesterday = (bookings.now().date() - timedelta(days=1)).isoformat()
 
-# 1. Sample data: tomorrow has 2 bookings (17:00 and 20:00), the other hours are free.
+# 0. Times are written the 12-hour way, and read back from any format.
+assert bookings.time_label(23) == "11 مساءً" and bookings.time_label(16) == "4 مساءً"
+assert bookings.time_label(0) == "12 صباحًا" and bookings.time_label(9) == "9 صباحًا"
+for written in ["11 مساءً", "11 PM", "23:00", "23:00:00"]:
+    assert bookings.hour_of(written) == 23, written
+
+# 1. Sample data: tomorrow has 2 bookings (5 and 8 PM), the other hours are free.
 day = bookings.check_day(tomorrow)
-assert day["booked_hours"] == ["17:00", "20:00"]
-assert "18:00" in day["free_hours"] and "20:00" not in day["free_hours"]
+assert day["booked_hours"] == ["5 مساءً", "8 مساءً"]
+assert "6 مساءً" in day["free_hours"] and "8 مساءً" not in day["free_hours"]
 
 # 2. Booking a free hour works and shows up in the table.
 assert bookings.book_slot(tomorrow, 18, "Khalid", "96890000000")["ok"]
-assert "18:00" in bookings.check_day(tomorrow)["booked_hours"]
+assert "6 مساءً" in bookings.check_day(tomorrow)["booked_hours"]
 
 # 3. The same hour can't be booked twice.
 assert not bookings.book_slot(tomorrow, 18, "Someone else", "96890000001")["ok"]
