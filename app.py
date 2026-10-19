@@ -3,7 +3,8 @@ WhatsApp AI Bot - main entry point.
 
 Part 1: a minimal web server, just to confirm everything runs.
 Part 2: the webhook. Meta verifies our server, then sends us every incoming message.
-Part 3: the reply. We send a message back through the WhatsApp API (echo for now).
+Part 3: the reply. We send a message back through the WhatsApp API.
+Part 4: the AI. OpenAI writes the answer instead of repeating the user's message.
 """
 import os
 
@@ -19,8 +20,50 @@ load_dotenv()
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 
+# Our OpenAI key (from platform.openai.com > API keys) and the model that answers.
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
+# The bot's personality. The AI reads these instructions before every answer.
+SYSTEM_PROMPT = (
+    "You are a friendly, helpful assistant chatting with people on WhatsApp. "
+    "Always reply in the same language the user writes in. "
+    "Keep answers short and clear, like a chat message. "
+    "Use plain text: no Markdown headings, tables or code blocks."
+)
+
+# Meta may send the same message twice (for example when the AI takes long to answer).
+# We remember the IDs we already handled, so we never reply twice to one message.
+# ponytail: kept in memory, so it resets on restart and isn't shared between Azure workers;
+# move it to a database if duplicate replies show up there.
+handled_message_ids = set()
+
 # Azure (gunicorn) looks for a variable named "app" inside app.py to start the server.
 app = Flask(__name__)
+
+
+def ask_ai(text):
+    """Send the user's message to OpenAI and return the AI's answer."""
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={
+                "model": OPENAI_MODEL,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+            },
+            timeout=60,
+        )
+        response.raise_for_status()  # turns an error answer (wrong key, no credit, ...) into an exception
+        return response.json()["choices"][0]["message"]["content"]
+    except requests.RequestException as error:
+        # Print the real reason for us, and send the user a polite message instead.
+        reason = error.response.text if error.response is not None else error
+        print(f"OpenAI error: {reason}", flush=True)
+        return "Sorry, I can't answer right now. Please try again in a moment."
 
 
 def send_message(to, text):
@@ -84,18 +127,23 @@ def receive_message():
     for entry in data.get("entry", []):
         for change in entry.get("changes", []):
             for message in change.get("value", {}).get("messages", []):
+                if message["id"] in handled_message_ids:
+                    continue  # already answered this one
+                handled_message_ids.add(message["id"])
+
                 sender = message["from"]  # the sender's phone number, e.g. "9665xxxxxxxx"
 
                 if message["type"] == "text":
                     text = message["text"]["body"]
+                    # flush=True makes the line show up right away (also in Azure's log stream).
+                    print(f"Message from {sender}: {text}", flush=True)
+                    reply = ask_ai(text)
                 else:
-                    text = f"<{message['type']} message>"  # image, audio, sticker, ...
+                    # Images, voice notes, stickers, ... The AI only reads text for now.
+                    print(f"Message from {sender}: <{message['type']} message>", flush=True)
+                    reply = "Sorry, I can only read text messages for now."
 
-                # flush=True makes the line show up right away (also in Azure's log stream).
-                print(f"Message from {sender}: {text}", flush=True)
-
-                # Reply with the same text (echo). Part 4 will replace this with an AI answer.
-                send_message(sender, f"You said: {text}")
+                send_message(sender, reply)
 
     # Always answer 200 quickly. Otherwise Meta thinks we failed and keeps resending the event.
     return "OK", 200

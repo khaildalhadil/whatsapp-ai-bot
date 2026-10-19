@@ -1,7 +1,7 @@
 # WhatsApp AI Bot
 
 A WhatsApp bot built with Python + Flask, using the WhatsApp Cloud API (Meta).
-It will be deployed to Azure App Service.
+Replies are written by OpenAI. It will be deployed to Azure App Service.
 
 ## Run locally (Windows PowerShell)
 
@@ -51,6 +51,6 @@ The tunnel URL changes every time you restart cloudflared, so update it in Meta 
 
 1. **Project setup** (done): Flask server + health check
 2. **Webhook** (done): Meta verifies our server and sends us incoming messages
-3. Reply: send a message back through the WhatsApp API
-4. AI: generate smart replies
+3. **Reply** (done): send a message back through the WhatsApp API
+4. **AI** (done): OpenAI writes the replies (needs `OPENAI_API_KEY` in `.env`)
 5. Deploy to Azure
