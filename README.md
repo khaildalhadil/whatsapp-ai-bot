@@ -1,21 +1,24 @@
 # WhatsApp AI Bot
 
 A WhatsApp booking bot for a tartan football pitch, built with Python + Flask and the
-WhatsApp Cloud API (Meta). OpenAI writes the replies, and reads/writes the bookings table
-in `bookings.xlsx`. It will be deployed to Azure App Service.
+WhatsApp Cloud API (Meta). OpenAI writes the replies and books hours in a SQLite database,
+and a web dashboard shows the bookings. It will be deployed to Azure App Service.
 
-## The bookings table
+## The bookings dashboard
 
-`bookings.xlsx` has one row per booked hour, in Arabic (right to left):
-`التاريخ | اليوم | الوقت | الاسم | رقم الهاتف` (date, day, time, name, phone).
-Phone numbers are saved as 8-digit Omani numbers, without 968.
-It is created with sample data the first time the bot runs. To reset it to sample data:
+Open http://localhost:8000/dashboard (or the tunnel/Azure URL + `/dashboard`).
+The browser asks for a login: user `admin`, password = `DASHBOARD_PASSWORD` from `.env`.
+
+It shows today's numbers, a weekly grid (days x hours) and the list of upcoming bookings
+with the customers' numbers. It reloads by itself every minute.
+
+The bookings are saved in `bookings.db` (SQLite, one file, comes with Python). One row per
+booked hour: date, hour, name, phone (8-digit Omani number, without 968). The database is
+created with sample bookings the first time the bot runs. To reset it to sample bookings:
 
 ```powershell
 python bookings.py
 ```
-
-Close the file in Excel before people book: Excel locks it while it's open.
 
 ## Run locally (Windows PowerShell)
 
@@ -69,5 +72,6 @@ The tunnel URL changes every time you restart cloudflared, so update it in Meta 
 3. **Reply** (done): send a message back through the WhatsApp API
 4. **AI** (done): OpenAI writes the replies and remembers each person's last 10 messages
    (needs `OPENAI_API_KEY` in `.env`)
-5. **Bookings** (done): the AI checks free hours and books them in `bookings.xlsx`
-6. Deploy to Azure
+5. **Bookings** (done): the AI checks free hours and books them in the database
+6. **Dashboard** (done): a password-protected page that shows the bookings
+7. Deploy to Azure

@@ -5,15 +5,17 @@ Part 1: a minimal web server, just to confirm everything runs.
 Part 2: the webhook. Meta verifies our server, then sends us every incoming message.
 Part 3: the reply. We send a message back through the WhatsApp API.
 Part 4: the AI. OpenAI writes the answer instead of repeating the user's message.
-Part 5: bookings. The AI checks and books pitch hours in bookings.xlsx (see bookings.py).
+Part 5: bookings. The AI checks and books pitch hours in the database (see bookings.py).
+Part 6: the dashboard. A password-protected web page that shows the bookings (/dashboard).
 """
+import hmac
 import json
 import os
-from datetime import timedelta
+from datetime import date, timedelta
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, request, send_from_directory
+from flask import Flask, Response, render_template, request, send_from_directory
 
 import bookings
 
@@ -28,6 +30,9 @@ PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 # Our OpenAI key (from platform.openai.com > API keys) and the model that answers.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+
+# The dashboard password. The dashboard stays locked if it's not set.
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")
 
 
 def system_prompt():
@@ -188,6 +193,48 @@ def privacy():
     # Meta needs a public privacy policy link before the app can be published.
     # The page itself is the privacy.html file next to this one.
     return send_from_directory(app.root_path, "privacy.html")
+
+
+@app.get("/dashboard")
+def dashboard():
+    # The bookings hold customers' names and numbers, so the page needs a password.
+    # The browser shows its own login box: user "admin", password = DASHBOARD_PASSWORD.
+    login = request.authorization
+    logged_in = (
+        DASHBOARD_PASSWORD
+        and login is not None
+        and login.username == "admin"
+        and hmac.compare_digest(login.password or "", DASHBOARD_PASSWORD)  # safe password compare
+    )
+    if not logged_in:
+        return Response("Login required", 401, {"WWW-Authenticate": 'Basic realm="Bookings dashboard"'})
+
+    now = bookings.now()
+    today = now.date()
+    days = [today + timedelta(days=d) for d in range(7)]
+    hours = list(range(bookings.OPEN_HOUR, bookings.CLOSE_HOUR))
+
+    week = bookings.upcoming(7)
+    for booking in week:
+        booking["day_name"] = bookings.ARABIC_DAYS[date.fromisoformat(booking["date"]).weekday()]
+
+    # Find a booking by (date, hour), to fill the weekly grid.
+    grid = {(b["date"], b["hour"]): b for b in week}
+    free_today = [h for h in hours if h > now.hour and (today.isoformat(), h) not in grid]
+
+    return render_template(
+        "dashboard.html",
+        days=days,
+        hours=hours,
+        grid=grid,
+        week=week,
+        today_count=sum(1 for b in week if b["date"] == today.isoformat()),
+        free_today=free_today,
+        occupancy=round(100 * len(week) / (len(days) * len(hours))),
+        updated=now.strftime("%H:%M"),
+        time_label=bookings.time_label,
+        day_name=lambda d: bookings.ARABIC_DAYS[d.weekday()],
+    )
 
 
 @app.get("/webhook")

@@ -2,10 +2,21 @@
 Quick check for the webhook, without Meta, OpenAI or the internet.
 Run it with:  python test_webhook.py
 """
+import base64
 import io
+import os
+import tempfile
 from contextlib import redirect_stdout
+from datetime import timedelta
 
-import app as bot
+import bookings
+
+# Use a temporary database, so the test never touches your real bookings.
+bookings.DB_FILE = os.path.join(tempfile.mkdtemp(), "bookings.db")
+bookings.create_table()
+bookings.add_sample_bookings()
+
+import app as bot  # noqa: E402
 
 # Replace the real send_message and ask_ai with fake ones.
 # This way the test never sends a real WhatsApp message and never calls OpenAI.
@@ -75,5 +86,21 @@ assert len(bot.conversations["966500000000"]) == bot.MAX_HISTORY
 
 # 9. The privacy policy page that Meta links to.
 assert client.get("/privacy").status_code == 200
+
+# 10. The dashboard needs the password.
+bot.DASHBOARD_PASSWORD = "test-password"
+def login(user, password):
+    return {"Authorization": "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()}
+
+assert client.get("/dashboard").status_code == 401
+assert client.get("/dashboard", headers=login("admin", "wrong")).status_code == 401
+page = client.get("/dashboard", headers=login("admin", "test-password"))
+assert page.status_code == 200 and "جدول الأسبوع" in page.get_data(as_text=True)
+
+# 11. A customer name with HTML in it is shown as text, never run as code.
+tomorrow = (bookings.now().date() + timedelta(days=1)).isoformat()
+bookings.book_slot(tomorrow, 23, "<script>alert(1)</script>", "91234567")
+html = client.get("/dashboard", headers=login("admin", "test-password")).get_data(as_text=True)
+assert "<script>alert(1)</script>" not in html and "&lt;script&gt;" in html
 
 print("All webhook checks passed")

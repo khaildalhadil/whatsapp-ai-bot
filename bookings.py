@@ -1,33 +1,55 @@
 """
-The pitch bookings table, kept in an Excel file (bookings.xlsx).
+The pitch bookings, kept in a small SQLite database (bookings.db).
 
-Each row is one booked hour:  التاريخ | اليوم | الوقت | الاسم | رقم الهاتف
-(date, day, time, name, phone). The sheet is in Arabic, right to left.
-The AI uses check_day() and book_slot() to answer customers on WhatsApp.
+SQLite comes with Python: the whole database is one file, no server to install.
+Each row of the "bookings" table is one booked hour: date, hour, name, phone.
 
-Run "python bookings.py" to (re)create the file with sample bookings.
+The AI uses check_day() and book_slot() to answer customers on WhatsApp,
+and the /dashboard page uses upcoming() to show the bookings.
+
+Run "python bookings.py" to reset the database to sample bookings.
 """
 import os
-import threading
+import sqlite3
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 
-from openpyxl import Workbook, load_workbook
-
-FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bookings.xlsx")
-HEADERS = ["التاريخ", "اليوم", "الوقت", "الاسم", "رقم الهاتف"]
+# Where the database file lives. On Azure we point this to a folder that survives redeploys.
+DB_FILE = os.getenv("DATABASE_PATH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "bookings.db")
 
 # Arabic day names, in Python's order: weekday() is 0 for Monday ... 6 for Sunday.
 ARABIC_DAYS = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
 
 OPEN_HOUR = 16   # the pitch opens at 4 PM ...
-CLOSE_HOUR = 24  # ... and closes at midnight, so the last booking starts at 23:00
+CLOSE_HOUR = 24  # ... and closes at midnight, so the last booking starts at 11 PM (23)
 
 # Oman time (UTC+4, no daylight saving). Azure servers run on UTC, so we set it ourselves.
 LOCAL_TIME = timezone(timedelta(hours=4))
 
-# Two people could try to book the same hour at the same moment.
-# The lock makes them wait for each other, so one hour is never booked twice.
-lock = threading.Lock()
+
+def run(sql, params=()):
+    """Run one SQL statement on the database and return the rows as a list of dicts."""
+    with closing(sqlite3.connect(DB_FILE)) as db:
+        db.row_factory = sqlite3.Row  # lets us read columns by name: row["date"]
+        rows = db.execute(sql, params).fetchall()
+        db.commit()
+        return [dict(row) for row in rows]
+
+
+def create_table():
+    # UNIQUE (date, hour) makes the database itself refuse a second booking of the same hour,
+    # even if two customers press "book" at the same moment.
+    run("""
+        CREATE TABLE IF NOT EXISTS bookings (
+            id         INTEGER PRIMARY KEY,
+            date       TEXT    NOT NULL,              -- "2026-10-23"
+            hour       INTEGER NOT NULL,              -- 24h start hour, e.g. 23 for 11 PM
+            name       TEXT    NOT NULL,
+            phone      TEXT    NOT NULL,              -- 8-digit Omani number, e.g. "91234567"
+            created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (date, hour)
+        )
+    """)
 
 
 def now():
@@ -51,32 +73,10 @@ def time_label(hour):
     return f"{hour % 12 or 12} {suffix}"
 
 
-def hour_of(cell):
-    """Read the 24h hour from a Time cell: "11 مساءً", "11 PM", "23:00" or a real Excel time -> 23."""
-    text = str(cell)
-    hour = int(text.split(":")[0].split()[0])
-    if ("مساء" in text or "PM" in text.upper()) and hour < 12:
-        hour += 12
-    return hour
-
-
-def read_bookings():
-    """Return every booking in the table as a list of dicts."""
-    if not os.path.exists(FILE):
-        create_sample_file()
-    sheet = load_workbook(FILE).active
-    rows = sheet.iter_rows(min_row=2, values_only=True)  # min_row=2 skips the header row
-    # str(...)[:10] keeps "2026-10-23" even if Excel turned the cell into a real date.
-    return [
-        {"date": str(row[0])[:10], "hour": hour_of(row[2]), "name": row[3], "phone": row[4]}
-        for row in rows
-        if row[0]
-    ]
-
-
 def booked_hours(day):
     """The booked hours (24h numbers, e.g. [17, 20]) of one date."""
-    return sorted(b["hour"] for b in read_bookings() if b["date"] == day.isoformat())
+    rows = run("SELECT hour FROM bookings WHERE date = ? ORDER BY hour", (day.isoformat(),))
+    return [row["hour"] for row in rows]
 
 
 def check_day(date):
@@ -104,45 +104,46 @@ def book_slot(date, hour, name, phone):
     if datetime(day.year, day.month, day.day, hour) < now():
         return {"ok": False, "reason": "This time is already in the past."}
 
-    with lock:
-        # Check again inside the lock: someone may have booked it a second ago.
-        if hour in booked_hours(day):
-            return {"ok": False, "reason": "This hour is already booked."}
-
-        workbook = load_workbook(FILE)
-        row = [day.isoformat(), ARABIC_DAYS[day.weekday()], time_label(hour), name, local_number(phone)]
-        workbook.active.append(row)
-        try:
-            workbook.save(FILE)
-        except PermissionError:
-            # On Windows, Excel locks the file while you have it open.
-            return {"ok": False, "reason": "The bookings file is open in Excel. Close it and try again."}
+    try:
+        run("INSERT INTO bookings (date, hour, name, phone) VALUES (?, ?, ?, ?)",
+            (day.isoformat(), hour, name, local_number(phone)))
+    except sqlite3.IntegrityError:  # the UNIQUE (date, hour) rule said no
+        return {"ok": False, "reason": "This hour is already booked."}
 
     return {"ok": True, "date": day.isoformat(), "day": day.strftime("%A"), "time": time_label(hour), "name": name}
 
 
-def create_sample_file():
-    """Create bookings.xlsx with made-up bookings for the next 7 days (1 to 3 per day)."""
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "الحجوزات"
-    sheet.sheet_view.rightToLeft = True  # Arabic layout: first column on the right
-    sheet.append(HEADERS)
-    for column, width in zip("ABCDE", [12, 11, 8, 14, 14]):
-        sheet.column_dimensions[column].width = width
+def upcoming(days=7):
+    """All bookings from today for the next `days` days, oldest first (for the dashboard)."""
+    today = now().date()
+    last_day = today + timedelta(days=days - 1)
+    return run(
+        "SELECT * FROM bookings WHERE date BETWEEN ? AND ? ORDER BY date, hour",
+        (today.isoformat(), last_day.isoformat()),
+    )
 
+
+def add_sample_bookings():
+    """Delete every booking and add made-up ones for the next 7 days (1 to 3 per day)."""
+    run("DELETE FROM bookings")
     names = ["أحمد", "محمد", "سالم", "يوسف", "علي", "سعيد", "حمد"]
     for d in range(7):
         day = now().date() + timedelta(days=d)
         for i, hour in enumerate([17, 20, 22][: d % 3 + 1]):
             fake_phone = f"9{d}{i}12345"  # made-up 8-digit Omani number
-            sheet.append([day.isoformat(), ARABIC_DAYS[day.weekday()], time_label(hour), names[(d + i) % 7], fake_phone])
+            run("INSERT INTO bookings (date, hour, name, phone) VALUES (?, ?, ?, ?)",
+                (day.isoformat(), hour, names[(d + i) % 7], fake_phone))
 
-    workbook.save(FILE)
+
+# The first time the bot runs, create the database with sample bookings.
+if not os.path.exists(DB_FILE):
+    create_table()
+    add_sample_bookings()
 
 
 if __name__ == "__main__":
-    create_sample_file()
-    print(f"Created {FILE} with sample bookings:")
-    for booking in read_bookings():
-        print(booking)
+    create_table()
+    add_sample_bookings()
+    print(f"Reset {DB_FILE} to sample bookings:")
+    for booking in upcoming():
+        print(booking["date"], time_label(booking["hour"]), booking["name"], booking["phone"])
