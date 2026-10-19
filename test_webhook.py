@@ -11,7 +11,13 @@ import app as bot
 # This way the test never sends a real WhatsApp message and never calls OpenAI.
 sent = []
 bot.send_message = lambda to, text: sent.append((to, text))
-bot.ask_ai = lambda text: f"AI answer to: {text}"
+
+# The fake AI answers the last message, and remembers how much history it was given.
+history_sizes = []
+def fake_ai(history):
+    history_sizes.append(len(history))
+    return f"AI answer to: {history[-1]['content']}"
+bot.ask_ai = fake_ai
 
 client = bot.app.test_client()
 
@@ -53,7 +59,21 @@ image_event = {"entry": [{"changes": [{"value": {
 client.post("/webhook", json=image_event)
 assert sent[-1] == ("966500000000", "Sorry, I can only read text messages for now.")
 
-# 7. The privacy policy page that Meta links to.
+# 7. Memory: a follow-up message is sent to the AI together with the earlier conversation.
+def text_event(message_id, body):
+    return {"entry": [{"changes": [{"value": {
+        "messages": [{"id": message_id, "from": "966500000000", "type": "text", "text": {"body": body}}],
+    }}]}]}
+
+client.post("/webhook", json=text_event("wamid.3", "and you?"))
+assert history_sizes[-1] == 3  # "hello", the AI's answer, "and you?"
+
+# 8. Only the last MAX_HISTORY messages are kept.
+for i in range(10):
+    client.post("/webhook", json=text_event(f"wamid.more{i}", f"message {i}"))
+assert len(bot.conversations["966500000000"]) == bot.MAX_HISTORY
+
+# 9. The privacy policy page that Meta links to.
 assert client.get("/privacy").status_code == 200
 
 print("All webhook checks passed")

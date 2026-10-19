@@ -38,22 +38,30 @@ SYSTEM_PROMPT = (
 # move it to a database if duplicate replies show up there.
 handled_message_ids = set()
 
+# Each person's recent messages, so the AI understands follow-up questions
+# like "and how much does it cost?". Key = phone number, value = list of messages.
+# ponytail: kept in memory, so it resets on restart and isn't shared between Azure workers;
+# move it to a database if conversations need to survive restarts.
+conversations = {}
+MAX_HISTORY = 10  # messages kept per person (5 questions + 5 answers)
+
 # Azure (gunicorn) looks for a variable named "app" inside app.py to start the server.
 app = Flask(__name__)
 
 
-def ask_ai(text):
-    """Send the user's message to OpenAI and return the AI's answer."""
+def ask_ai(history):
+    """Send the conversation so far to OpenAI and return the AI's next answer.
+
+    history is a list like [{"role": "user", "content": "hi"}, {"role": "assistant", ...}, ...]
+    """
     try:
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={
                 "model": OPENAI_MODEL,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": text},
-                ],
+                # The instructions first, then the conversation, so the AI sees the whole context.
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
             },
             timeout=60,
         )
@@ -137,7 +145,14 @@ def receive_message():
                     text = message["text"]["body"]
                     # flush=True makes the line show up right away (also in Azure's log stream).
                     print(f"Message from {sender}: {text}", flush=True)
-                    reply = ask_ai(text)
+
+                    # Add the new message to this person's conversation, ask the AI,
+                    # then save the answer too and forget the oldest messages.
+                    history = conversations.setdefault(sender, [])
+                    history.append({"role": "user", "content": text})
+                    reply = ask_ai(history)
+                    history.append({"role": "assistant", "content": reply})
+                    del history[:-MAX_HISTORY]
                 else:
                     # Images, voice notes, stickers, ... The AI only reads text for now.
                     print(f"Message from {sender}: <{message['type']} message>", flush=True)

@@ -52,5 +52,6 @@ The tunnel URL changes every time you restart cloudflared, so update it in Meta 
 1. **Project setup** (done): Flask server + health check
 2. **Webhook** (done): Meta verifies our server and sends us incoming messages
 3. **Reply** (done): send a message back through the WhatsApp API
-4. **AI** (done): OpenAI writes the replies (needs `OPENAI_API_KEY` in `.env`)
+4. **AI** (done): OpenAI writes the replies and remembers each person's last 10 messages
+   (needs `OPENAI_API_KEY` in `.env`)
 5. Deploy to Azure
