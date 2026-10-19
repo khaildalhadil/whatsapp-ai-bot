@@ -78,7 +78,7 @@ TOOLS = [
                     "date": {"type": "string", "description": "The date, as YYYY-MM-DD"},
                     "hour": {"type": "integer", "description": "Start hour in 24h format, e.g. 20 for 8 PM"},
                     "name": {"type": "string", "description": "The customer's name"},
-                    "phone": {"type": "string", "description": "The customer's phone number"},
+                    "phone": {"type": "string", "description": "The customer's Omani phone number (8 digits)"},
                 },
                 "required": ["date", "hour", "name", "phone"],
                 "additionalProperties": False,

@@ -6,7 +6,9 @@ in `bookings.xlsx`. It will be deployed to Azure App Service.
 
 ## The bookings table
 
-`bookings.xlsx` has one row per booked hour: `Date | Day | Time | Name | Phone`.
+`bookings.xlsx` has one row per booked hour, in Arabic (right to left):
+`التاريخ | اليوم | الوقت | الاسم | رقم الهاتف` (date, day, time, name, phone).
+Phone numbers are saved as 8-digit Omani numbers, without 968.
 It is created with sample data the first time the bot runs. To reset it to sample data:
 
 ```powershell

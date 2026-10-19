@@ -33,4 +33,16 @@ assert not bookings.book_slot(yesterday, 20, "Khalid", "96890000000")["ok"]
 # 5. check_day never reveals other customers' names or numbers.
 assert "Khalid" not in str(bookings.check_day(tomorrow))
 
+# 6. Phone numbers are saved as 8-digit Omani numbers, whatever way the customer writes them.
+for written in ["+968 9123 4567", "0096891234567", "96891234567", "٩١٢٣٤٥٦٧", "9123 4567"]:
+    assert bookings.local_number(written) == "91234567", written
+bookings.book_slot(tomorrow, 19, "Khalid", "+968 9123 4567")
+assert {"hour": 19, "phone": "91234567"}.items() <= next(
+    b for b in bookings.read_bookings() if b["date"] == tomorrow and b["hour"] == 19
+).items()
+
+# 7. The sheet is in Arabic: Arabic headers and day names.
+sheet = bookings.load_workbook(bookings.FILE).active
+assert sheet["A1"].value == "التاريخ" and sheet["B2"].value in bookings.ARABIC_DAYS
+
 print("All booking checks passed")
