@@ -9,7 +9,7 @@ import os
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 
 # Load variables from the .env file (token, phone number ID, ...).
 # On Azure there is no .env file: the same variables are set in the portal instead.
@@ -51,6 +51,13 @@ def send_message(to, text):
 def health():
     # Health check: open http://localhost:8000 in the browser and you should see this text.
     return "WhatsApp bot is running"
+
+
+@app.get("/privacy")
+def privacy():
+    # Meta needs a public privacy policy link before the app can be published.
+    # The page itself is the privacy.html file next to this one.
+    return send_from_directory(app.root_path, "privacy.html")
 
 
 @app.get("/webhook")

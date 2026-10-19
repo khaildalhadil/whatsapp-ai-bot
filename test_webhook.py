@@ -41,4 +41,7 @@ status_event = {"entry": [{"changes": [{"value": {"statuses": [{"status": "read"
 assert client.post("/webhook", json=status_event).status_code == 200
 assert len(sent) == 1
 
+# 5. The privacy policy page that Meta links to.
+assert client.get("/privacy").status_code == 200
+
 print("All webhook checks passed")
