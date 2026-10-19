@@ -1,4 +1,6 @@
 flask==3.1.3
 python-dotenv==1.2.4
+# Sends HTTP requests to the WhatsApp API
+requests==2.34.2
 # Production web server used by Azure (it does not run on Windows, only on Linux)
 gunicorn==26.2.0

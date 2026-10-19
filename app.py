@@ -3,10 +3,11 @@ WhatsApp AI Bot - main entry point.
 
 Part 1: a minimal web server, just to confirm everything runs.
 Part 2: the webhook. Meta verifies our server, then sends us every incoming message.
-Next parts will add the replies.
+Part 3: the reply. We send a message back through the WhatsApp API (echo for now).
 """
 import os
 
+import requests
 from dotenv import load_dotenv
 from flask import Flask, request
 
@@ -14,8 +15,36 @@ from flask import Flask, request
 # On Azure there is no .env file: the same variables are set in the portal instead.
 load_dotenv()
 
+# Our WhatsApp credentials (from Meta dashboard > WhatsApp > API Setup).
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
+
 # Azure (gunicorn) looks for a variable named "app" inside app.py to start the server.
 app = Flask(__name__)
+
+
+def send_message(to, text):
+    """Send a WhatsApp text message to the phone number "to"."""
+    url = f"https://graph.facebook.com/v23.0/{PHONE_NUMBER_ID}/messages"
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
+    body = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": text},
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=body, timeout=10)
+    except requests.RequestException as error:
+        # No internet, timeout, ... We print it instead of crashing the webhook.
+        print(f"Could not reach WhatsApp: {error}", flush=True)
+        return
+
+    if not response.ok:
+        # Common reasons: the token expired, or (test number) the recipient
+        # is not in the allowed list in Meta's API Setup page.
+        print(f"WhatsApp refused the message: {response.text}", flush=True)
 
 
 @app.get("/")
@@ -57,6 +86,9 @@ def receive_message():
 
                 # flush=True makes the line show up right away (also in Azure's log stream).
                 print(f"Message from {sender}: {text}", flush=True)
+
+                # Reply with the same text (echo). Part 4 will replace this with an AI answer.
+                send_message(sender, f"You said: {text}")
 
     # Always answer 200 quickly. Otherwise Meta thinks we failed and keeps resending the event.
     return "OK", 200
