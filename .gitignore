@@ -3,6 +3,8 @@
 
 # Live bookings data (created by bookings.py; holds customers' names and numbers)
 bookings.xlsx
+# Lock file Excel creates while a file is open
+~$*
 
 # Python virtual environment and cache
 .venv/
