@@ -1,0 +1,161 @@
+/* The dashboard's look. Colors are variables, so dark mode only swaps the values. */
+:root {
+  --bg: #f3f6f4;
+  --card: #ffffff;
+  --text: #15201a;
+  --muted: #6b7a72;
+  --line: #e2e9e5;
+  --accent: #16a34a;
+  --accent-strong: #15803d;
+  --accent-soft: #e6f6ec;
+  --free: #f7faf8;
+  --past: #eef1ef;
+  --live: #f59e0b;
+  --shadow: 0 1px 2px rgba(16, 40, 24, 0.06), 0 6px 20px rgba(16, 40, 24, 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1411;
+    --card: #141d18;
+    --text: #e4ece7;
+    --muted: #8a9a91;
+    --line: #233029;
+    --accent: #34d073;
+    --accent-strong: #5ee08f;
+    --accent-soft: #173524;
+    --free: #111915;
+    --past: #18211c;
+    --live: #fbbf24;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 24px 16px 48px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Tajawal", "Segoe UI", Tahoma, system-ui, sans-serif;
+  line-height: 1.5;
+}
+main { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+/* Let grid boxes shrink below their content's width, so wide parts (day tabs, week grid)
+   scroll inside their own box instead of making the whole page wider than the phone. */
+main > *, .columns > * { min-width: 0; }
+h1 { font-size: 1.45rem; font-weight: 800; margin: 0; }
+h2 { font-size: 1.1rem; font-weight: 700; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.loading { text-align: center; color: var(--muted); padding: 80px 16px; font-size: 1.1rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); }
+
+/* ----- header ----- */
+.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo {
+  width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 1.6rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+}
+.live-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line); font-size: 0.85rem; color: var(--muted);
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+.live-pill.offline .dot { background: #dc2626; animation: none; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); } 70% { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); } }
+
+.next-up {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 16px; border-radius: 12px;
+  background: var(--accent-soft); color: var(--accent-strong);
+}
+
+/* ----- numbers on top ----- */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.stat { display: grid; gap: 4px; }
+.stat-icon {
+  width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-strong); margin-bottom: 6px;
+}
+.stat-label { color: var(--muted); font-size: 0.92rem; }
+.stat-value { font-size: 2.1rem; font-weight: 800; line-height: 1.1; }
+.stat-hint { color: var(--muted); font-size: 0.8rem; }
+.bar { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 4px 0; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+
+/* ----- two columns: day view + booking list ----- */
+.columns { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; align-items: start; }
+
+.day-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
+.day-tab {
+  flex: 1 0 82px; display: grid; gap: 2px; justify-items: center; padding: 10px 6px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--free); color: var(--text); font: inherit;
+}
+.day-tab.active { border-color: var(--accent); background: var(--accent-soft); }
+.day-name { font-weight: 700; }
+.day-date, .day-count { font-size: 0.78rem; color: var(--muted); }
+.mini-bar { width: 80%; height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.mini-bar span { display: block; height: 100%; background: var(--accent); }
+
+.slots { display: grid; gap: 8px; }
+.slot {
+  position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 56px;
+  border-radius: 12px; border: 1px dashed var(--line); background: var(--free);
+}
+.slot.booked { border: 1px solid transparent; background: var(--accent-soft); }
+.slot.past { background: var(--past); opacity: 0.6; }
+.slot.live { border: 2px solid var(--live); }
+.slot-time { min-width: 72px; font-weight: 700; }
+.slot-body { flex: 1; }
+.slot-name { font-weight: 700; color: var(--accent-strong); }
+.slot-phone { font-size: 0.85rem; color: var(--muted); text-align: right; }
+.live-badge {
+  position: absolute; top: -9px; left: 12px; padding: 0 8px; border-radius: 999px; font-size: 0.72rem;
+  background: var(--live); color: #1c1300; font-weight: 700;
+}
+
+.contact { display: inline-flex; gap: 6px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--card); border: 1px solid var(--line); color: var(--accent-strong);
+}
+.icon-btn:hover { border-color: var(--accent); }
+
+/* ----- booking list ----- */
+.count { font-size: 0.8rem; padding: 0 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-strong); }
+.search {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin-bottom: 12px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 12px; background: var(--free);
+}
+.search input { flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; }
+.booking-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 560px; overflow-y: auto; }
+.booking-list li { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); }
+.date-chip {
+  min-width: 64px; display: grid; justify-items: center; padding: 6px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent-strong); font-weight: 700; font-size: 0.85rem;
+}
+.date-chip small { font-weight: 500; }
+.booking-info { flex: 1; }
+.booking-name { font-weight: 700; }
+.empty { text-align: center; color: var(--muted); padding: 24px; }
+
+/* ----- week grid ----- */
+.scroll { overflow-x: auto; }
+.week { width: 100%; border-collapse: separate; border-spacing: 4px; min-width: 640px; }
+.week th { font-weight: 600; font-size: 0.85rem; color: var(--muted); }
+.week th.selected { color: var(--accent-strong); }
+.week th.hour { text-align: right; white-space: nowrap; padding-left: 8px; }
+.link-btn { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; line-height: 1.3; }
+.cell {
+  height: 36px; border-radius: 8px; display: grid; place-items: center; padding: 0 4px; font-size: 0.82rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cell.free { background: var(--free); border: 1px solid var(--line); }
+.cell.booked { background: var(--accent); color: #fff; font-weight: 700; }
+.cell.past { background: var(--past); }
+
+/* ----- phones ----- */
+@media (max-width: 860px) {
+  .columns { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .stat-value { font-size: 1.7rem; }
+}

@@ -92,15 +92,26 @@ bot.DASHBOARD_PASSWORD = "test-password"
 def login(user, password):
     return {"Authorization": "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()}
 
-assert client.get("/dashboard").status_code == 401
-assert client.get("/dashboard", headers=login("admin", "wrong")).status_code == 401
-page = client.get("/dashboard", headers=login("admin", "test-password"))
-assert page.status_code == 200 and "جدول الأسبوع" in page.get_data(as_text=True)
+for url in ["/dashboard", "/api/dashboard"]:
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=login("admin", "wrong")).status_code == 401
+    assert client.get(url, headers=login("someone", "test-password")).status_code == 401
 
-# 11. A customer name with HTML in it is shown as text, never run as code.
+page = client.get("/dashboard", headers=login("admin", "test-password"))
+assert page.status_code == 200 and 'id="root"' in page.get_data(as_text=True)
+
+# 11. The API gives React the week: 7 days, the 8 opening hours and the bookings.
+data = client.get("/api/dashboard", headers=login("admin", "test-password")).get_json()
+assert len(data["days"]) == 7 and len(data["hours"]) == 8
+assert data["hours"][-1] == {"hour": 23, "label": "11 مساءً"}
+assert any(b["name"] == "أحمد" for b in data["bookings"])
+
+# 12. A customer name with HTML in it travels as plain JSON data, and the React code
+#     never inserts raw HTML, so it is always shown as text, never run as code.
 tomorrow = (bookings.now().date() + timedelta(days=1)).isoformat()
 bookings.book_slot(tomorrow, 23, "<script>alert(1)</script>", "91234567")
-html = client.get("/dashboard", headers=login("admin", "test-password")).get_data(as_text=True)
-assert "<script>alert(1)</script>" not in html and "&lt;script&gt;" in html
+r = client.get("/api/dashboard", headers=login("admin", "test-password"))
+assert r.is_json and any(b["name"] == "<script>alert(1)</script>" for b in r.get_json()["bookings"])
+assert "dangerouslySetInnerHTML" not in open(os.path.join(bot.app.static_folder, "dashboard.js"), encoding="utf-8").read()
 
 print("All webhook checks passed")

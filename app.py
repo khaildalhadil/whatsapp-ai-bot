@@ -6,16 +6,18 @@ Part 2: the webhook. Meta verifies our server, then sends us every incoming mess
 Part 3: the reply. We send a message back through the WhatsApp API.
 Part 4: the AI. OpenAI writes the answer instead of repeating the user's message.
 Part 5: bookings. The AI checks and books pitch hours in the database (see bookings.py).
-Part 6: the dashboard. A password-protected web page that shows the bookings (/dashboard).
+Part 6: the dashboard. A password-protected React page that shows the bookings (/dashboard),
+        fed by a JSON API (/api/dashboard). The page lives in the static/ folder.
 """
+import functools
 import hmac
 import json
 import os
-from datetime import date, timedelta
+from datetime import timedelta
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, Response, render_template, request, send_from_directory
+from flask import Flask, Response, request, send_from_directory
 
 import bookings
 
@@ -195,46 +197,55 @@ def privacy():
     return send_from_directory(app.root_path, "privacy.html")
 
 
+def login_required(view):
+    """Protect a page with a password: put @login_required above the route.
+
+    The bookings hold customers' names and numbers, so only the owner may see them.
+    The browser shows its own login box: user "admin", password = DASHBOARD_PASSWORD.
+    It then remembers the login, so the React page's data requests are logged in too.
+    """
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        login = request.authorization
+        logged_in = (
+            DASHBOARD_PASSWORD
+            and login is not None
+            and login.username == "admin"
+            and hmac.compare_digest(login.password or "", DASHBOARD_PASSWORD)  # safe password compare
+        )
+        if not logged_in:
+            return Response("Login required", 401, {"WWW-Authenticate": 'Basic realm="Bookings dashboard"'})
+        return view(*args, **kwargs)
+    return wrapper
+
+
 @app.get("/dashboard")
+@login_required
 def dashboard():
-    # The bookings hold customers' names and numbers, so the page needs a password.
-    # The browser shows its own login box: user "admin", password = DASHBOARD_PASSWORD.
-    login = request.authorization
-    logged_in = (
-        DASHBOARD_PASSWORD
-        and login is not None
-        and login.username == "admin"
-        and hmac.compare_digest(login.password or "", DASHBOARD_PASSWORD)  # safe password compare
-    )
-    if not logged_in:
-        return Response("Login required", 401, {"WWW-Authenticate": 'Basic realm="Bookings dashboard"'})
+    # The page is static/dashboard.html. It loads React (static/dashboard.js),
+    # which then asks /api/dashboard for the data and draws everything in the browser.
+    return send_from_directory(app.static_folder, "dashboard.html")
 
+
+@app.get("/api/dashboard")
+@login_required
+def dashboard_data():
+    """Everything the dashboard needs, as JSON: the next 7 days, the opening hours and the bookings."""
     now = bookings.now()
-    today = now.date()
-    days = [today + timedelta(days=d) for d in range(7)]
-    hours = list(range(bookings.OPEN_HOUR, bookings.CLOSE_HOUR))
-
-    week = bookings.upcoming(7)
-    for booking in week:
-        booking["day_name"] = bookings.ARABIC_DAYS[date.fromisoformat(booking["date"]).weekday()]
-
-    # Find a booking by (date, hour), to fill the weekly grid.
-    grid = {(b["date"], b["hour"]): b for b in week}
-    free_today = [h for h in hours if h > now.hour and (today.isoformat(), h) not in grid]
-
-    return render_template(
-        "dashboard.html",
-        days=days,
-        hours=hours,
-        grid=grid,
-        week=week,
-        today_count=sum(1 for b in week if b["date"] == today.isoformat()),
-        free_today=free_today,
-        occupancy=round(100 * len(week) / (len(days) * len(hours))),
-        updated=now.strftime("%H:%M"),
-        time_label=bookings.time_label,
-        day_name=lambda d: bookings.ARABIC_DAYS[d.weekday()],
-    )
+    days = [now.date() + timedelta(days=d) for d in range(7)]
+    return {
+        "updated": now.strftime("%H:%M"),
+        "now_hour": now.hour,
+        "days": [
+            {"date": d.isoformat(), "name": bookings.ARABIC_DAYS[d.weekday()], "short": d.strftime("%d/%m")}
+            for d in days
+        ],
+        "hours": [
+            {"hour": h, "label": bookings.time_label(h)}
+            for h in range(bookings.OPEN_HOUR, bookings.CLOSE_HOUR)
+        ],
+        "bookings": bookings.upcoming(7),
+    }
 
 
 @app.get("/webhook")

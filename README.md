@@ -9,8 +9,13 @@ and a web dashboard shows the bookings. It will be deployed to Azure App Service
 Open http://localhost:8000/dashboard (or the tunnel/Azure URL + `/dashboard`).
 The browser asks for a login: user `admin`, password = `DASHBOARD_PASSWORD` from `.env`.
 
-It shows today's numbers, a weekly grid (days x hours) and the list of upcoming bookings
-with the customers' numbers. It reloads by itself every minute.
+It shows today's numbers, the next booking, a day view (pick a day, see every hour),
+the list of upcoming bookings with search and call/WhatsApp buttons, and a weekly grid.
+It refreshes its data by itself every 30 seconds.
+
+The dashboard is a React page with no build step: `static/dashboard.html` loads
+`static/dashboard.js`, which imports React and htm from a CDN, then fetches the data from
+`/api/dashboard` (JSON). Both URLs need the login.
 
 The bookings are saved in `bookings.db` (SQLite, one file, comes with Python). One row per
 booked hour: date, hour, name, phone (8-digit Omani number, without 968). The database is

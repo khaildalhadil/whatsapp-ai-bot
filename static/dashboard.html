@@ -1,0 +1,20 @@
+<!doctype html>
+<!--
+  The dashboard page. It's almost empty on purpose: React (dashboard.js) draws everything
+  inside <div id="root"> after it fetches the bookings from /api/dashboard.
+-->
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>لوحة الحجوزات</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <div id="root"><div class="loading">جاري التحميل…</div></div>
+  <script type="module" src="/static/dashboard.js"></script>
+</body>
+</html>
